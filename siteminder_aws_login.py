@@ -12,56 +12,56 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timezone, timedelta
 from os.path import expanduser
 from urllib.parse import urlparse, urlunparse
-
+ 
 import boto3
 import requests
 from bs4 import BeautifulSoup
-
+ 
 ##########################################################################
 # Args
-
+ 
 parser = argparse.ArgumentParser(
     description = "Gets a STS token to use for AWS CLI based "
                   "on a SAML assertion from SiteMinder")
-
+ 
 parser.add_argument(
     '--username', '-u',
     help = "The username to use when logging into SiteMinder. The username can "
            "also be set via the SITEMINDER_USERNAME env variable. If not provided "
            "you will be prompted to enter a username."
 )
-
+ 
 parser.add_argument(
     '--profile', '-p',
     help = "The name of the profile to use when storing the credentials in "
            "the AWS credentials file. If not provided then the name of "
            "the role assumed will be used as the profile name."
 )
-
+ 
 parser.add_argument(
     '--verbose', '-v',
     action = 'store_true',
     help = "If set, will print a message about the AWS CLI profile "
            "that was created."
 )
-
+ 
 parser.add_argument(
     '--configure', '-c',
     action = 'store_true',
     help = "If set, will prompt user for configuration parameters "
             " and then exit."
 )
-
-
+ 
+ 
 args = parser.parse_args()
-
+ 
 ##########################################################################
-
+ 
 ### Variables ###
 # file_root: Path in which all file interaction will be relative to.
 # Defaults to the users home dir.
 file_root = expanduser("~")
-# siteminder_aws_login_config_file: The file were the config parameters for the 
+# siteminder_aws_login_config_file: The file were the config parameters for the
 # siteminder_aws_login tool is stored
 siteminder_aws_login_config_file = file_root + '/.siteminder_aws_login_config'
 # aws_config_file: The file where this script will store the temp
@@ -71,11 +71,11 @@ aws_config_file = file_root + '/.aws/credentials'
 # only used if cache_sid is True.
 sid_cache_file = file_root + '/.siteminder_sid'
 ###
-
+ 
 def get_arns_from_assertion(assertion):
-    """Parses a base64 encoded SAML Assertion and extracts the role and 
+    """Parses a base64 encoded SAML Assertion and extracts the role and
     principle ARNs to be used when making a request to STS.
-    Returns a dict with RoleArn, PrincipalArn & SAMLAssertion that can be 
+    Returns a dict with RoleArn, PrincipalArn & SAMLAssertion that can be
     used to call assume_role_with_saml"""
     # Parse the returned assertion and extract the principle and role ARNs
     root = ET.fromstring(base64.b64decode(assertion))
@@ -97,7 +97,7 @@ def get_arns_from_assertion(assertion):
             arn_dict['PrincipalArn'] = arn
     arn_dict['SAMLAssertion'] = assertion
     return arn_dict
-
+ 
 def get_saml_assertion(response):
     """Parses a requests.Response object that contains a SAML assertion.
     Returns an base64 encoded SAML Assertion if one is found"""
@@ -108,7 +108,7 @@ def get_saml_assertion(response):
     for inputtag in soup.find_all('input'):
         if(inputtag.get('name') == 'SAMLResponse'):
             return inputtag.get('value')
-
+ 
 def get_sid_from_file(sid_cache_file):
     """Checks to see if a file exists at the provided path. If so file is read
     and checked to see if the contents looks to be a valid sid.
@@ -118,7 +118,7 @@ def get_sid_from_file(sid_cache_file):
             sid = sid_file.read()
             if len(sid) == 25:
                 return sid
-
+ 
 def get_sts_token(RoleArn,PrincipalArn,SAMLAssertion):
     """Use the assertion to get an AWS STS token using Assume Role with SAML
     returns a Credentials dict with the keys and token"""
@@ -128,7 +128,7 @@ def get_sts_token(RoleArn,PrincipalArn,SAMLAssertion):
                                                 SAMLAssertion=SAMLAssertion)
     Credentials = response['Credentials']
     return Credentials
-
+ 
 def get_user_creds():
     """Get's creds for SiteMinder login from the user. Retruns user_creds dict"""
     # Check to see if the username arg has been set, if so use that
@@ -152,7 +152,7 @@ def get_user_creds():
     user_creds['username'] = username
     user_creds['password'] = password
     return user_creds
-
+ 
 def get_user_input(message,default):
     """formats message to include default and then prompts user for input
     via keyboard with message. Returns user's input or if user doesn't
@@ -164,7 +164,7 @@ def get_user_input(message,default):
         return default
     else:
         return user_input
-
+ 
 def siteminder_cookie_login(sid,idp_entry_url):
     """Attempts a login using the provided sid cookie value. Returns a
     requests.Response object. The Response object may or may not be a
@@ -177,7 +177,7 @@ def siteminder_cookie_login(sid,idp_entry_url):
     # make request to login page with sid cookie
     response = session.get(idp_entry_url,verify=True,cookies=cookie_dict)
     return response
-
+ 
 def siteminder_mfa_login(password_login_response,app):
     """Prompt user for MFA token generated by either SiteMinder Verify
     or Google Authenticator and construcuts MFA login request
@@ -227,7 +227,7 @@ def siteminder_mfa_login(password_login_response,app):
     cookie_response = siteminder_cookie_login(mfa_response.cookies['sid'],
                                         login_url)
     return cookie_response
-
+ 
 def siteminder_password_login(username,password,idp_entry_url):
     """Parses the idp_entry_url and performs a login with the creds
     provided by the user. Returns a requests.Response object that ideally
@@ -238,7 +238,7 @@ def siteminder_password_login(username,password,idp_entry_url):
     # Opens the initial IdP url and follows all of the HTTP302 redirects, and
     # gets the resulting login page
     formresponse = session.get(idp_entry_url, verify=True)
-    print("formresponse: {}".format(formresponse))
+                print("formresponse: {}".format(formresponse))
     # Capture the idpauthformsubmiturl,
     # which is the final url after all the 302s
     idpauthformsubmiturl = formresponse.url
@@ -246,11 +246,11 @@ def siteminder_password_login(username,password,idp_entry_url):
     # in order to build a dictionary of all of the form values the IdP expects
     formsoup = BeautifulSoup(formresponse.text, "html.parser")
     payload_dict = {}
-    for inputtag in formsoup.find_all(re.compile('(INPUT|input)')):
+    for inputtag in               formsoup.find_all(re.compile('(INPUT|input)')):
         name = inputtag.get('name','')
         value = inputtag.get('value','')
         if "user" in name.lower():
-            payload_dict[name] = username
+           payload_dict[name] = username
         elif "pass" in name.lower():
             payload_dict[name] = password
         else:
@@ -274,7 +274,7 @@ def siteminder_password_login(username,password,idp_entry_url):
     if "Sign in failed!" in response.text:
         print("Sign in failed!")
         sys.exit(1)
-    elif "SiteMinder Verify code" in response.text:
+   elif "SiteMinder Verify code" in response.text:
         response = siteminder_mfa_login(response,"SiteMinder Verify")
     elif "Google Authenticator code" in response.text:
         response = siteminder_mfa_login(response,"Google Authenticator")
@@ -283,7 +283,7 @@ def siteminder_password_login(username,password,idp_entry_url):
         print("Sending passcode via text message")
         response = siteminder_mfa_login(response,"text message")
     return response
-
+ 
 def send_sms_passcode(password_login_response):
     """Has SiteMinder send a passcode via SMS so that user can do an MFA login"""
     session = requests.Session()
@@ -302,12 +302,12 @@ def send_sms_passcode(password_login_response):
     # POST to send_sms_url to have SiteMinder send the SMS
     session.post(send_sms_url, headers=headers_dict, cookies=cookie_dict,
                  verify=True)
-
+ 
 def update_config_file(siteminder_aws_login_config_file):
     """Prompts user for config details for the siteminder_aws_login tool.
     Either updates exisiting config file or creates new one."""
     config = configparser.ConfigParser()
-    # See if a config file already exists.
+                                # See if a config file already exists.
     # If so, use current values as defaults
     if os.path.isfile(siteminder_aws_login_config_file) == True:
         config.read(siteminder_aws_login_config_file)
@@ -406,14 +406,14 @@ def update_config_file(siteminder_aws_login_config_file):
     config['DEFAULT'] = config_dict
     with open(siteminder_aws_login_config_file, 'w') as configfile:
         config.write(configfile)
-
+ 
 def write_aws_creds(aws_config_file,profile,access_key,secret_key,token,
                     region,output):
     """ Writes the AWS STS token into the AWS credential file"""
     # Check to see if the aws creds path exists, if not create it
     creds_dir = os.path.dirname(aws_config_file)
     if os.path.exists(creds_dir) == False:
-       os.makedirs(creds_dir) 
+       os.makedirs(creds_dir)
     config = configparser.RawConfigParser()
     # Read in the existing config file if it exists
     if os.path.isfile(aws_config_file):
@@ -430,13 +430,13 @@ def write_aws_creds(aws_config_file,profile,access_key,secret_key,token,
     # Write the updated config file
     with open(aws_config_file, 'w+') as configfile:
         config.write(configfile)
-
+ 
 def write_sid_file(sid_file,sid):
     """Writes a given sid to a file. Returns nothing"""
     sid_cache_file = os.open(sid_file,os.O_WRONLY|os.O_CREAT,mode=0o600)
     os.write(sid_cache_file,sid.encode())
     os.close(sid_cache_file)
-
+ 
 def main():
     # Create/Update config when configure arg set
     if args.configure == True:
@@ -452,7 +452,7 @@ def main():
         print(".siteminder_aws_login_config is needed. Use --configure flag to "
                 "generate file.")
         sys.exit(1)
-    # declaring a var to hold the SAML assertion. 
+    # declaring a var to hold the SAML assertion.
     assertion = None
     # if sid cache is enabled, see if a sid file exists
     if conf_dict['cache_sid'] == "yes":
@@ -463,19 +463,20 @@ def main():
     if sid is not None:
         response = siteminder_cookie_login(sid,conf_dict['idp_entry_url'])
         assertion = get_saml_assertion(response)
-    # if the assertion equals None, means there was no sid, the sid expired 
+    # if the assertion equals None, means there was no sid, the sid expired
     # or is otherwise invalid, so do a password login
-    if assertion is None:        
+    if assertion is None:       
         # If sid file exists, remove it because the contained sid has expired
         if os.path.isfile(sid_cache_file):
             os.remove(sid_cache_file)
         user_creds = get_user_creds()
+        print('yo1')
         response = siteminder_password_login(user_creds['username'],
                                        user_creds['password'],
                                        conf_dict['idp_entry_url'])
         assertion = get_saml_assertion(response)
     # If the assertion is still none after the password login, then something
-    # is wrong, complain and exit 
+    # is wrong, complain and exit
     if assertion is None:
         print("No valid SAML assertion retrieved!")
         sys.exit(1)
@@ -483,7 +484,7 @@ def main():
     if conf_dict['cache_sid'] == "yes":
         write_sid_file(sid_cache_file,response.cookies['sid'])
     # Get arns from the assertion and the AWS creds from STS
-    saml_dict = get_arns_from_assertion(assertion) 
+    saml_dict = get_arns_from_assertion(assertion)
     aws_creds = get_sts_token(saml_dict['RoleArn'],
                           saml_dict['PrincipalArn'],
                           saml_dict['SAMLAssertion'])
@@ -494,7 +495,7 @@ def main():
     # else check if profile should be default
     elif conf_dict['cred_profile'] == 'default':
         profile_name = 'default'
-    # otherwise check to see if it should be the name of the role 
+    # otherwise check to see if it should be the name of the role
     elif conf_dict['cred_profile'] == 'role':
         profile_name = saml_dict['RoleArn'].split('/')[1]
     # if none complain and exit
@@ -507,18 +508,17 @@ def main():
                     aws_creds['SecretAccessKey'],
                     aws_creds['SessionToken'],
                     conf_dict['region'],
-                    conf_dict['output_format'])
-
+                   conf_dict['output_format'])
+ 
     # Print message about aws_creds if verbose is set
     if args.verbose == True:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         valid_duration = aws_creds['Expiration'] - now
-        valid_minutes = math.ceil(valid_duration / timedelta(minutes=1)) 
+        valid_minutes = math.ceil(valid_duration / timedelta(minutes=1))
         cred_details = ("Credentials for the profile {} have been set. "
                         "They will expire in {} minutes.".format(profile_name,
-                        valid_minutes)) 
+                        valid_minutes))
         print(cred_details)
-
+ 
 if __name__ == '__main__':
     main()
-

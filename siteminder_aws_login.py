@@ -511,7 +511,7 @@ def main():
 
     # Print message about aws_creds if verbose is set
     if args.verbose == True:
-        now = datetime.now(timezone.utc)
+        now = datetime.utcnow()
         valid_duration = aws_creds['Expiration'] - now
         valid_minutes = math.ceil(valid_duration / timedelta(minutes=1)) 
         cred_details = ("Credentials for the profile {} have been set. "
@@ -519,6 +519,6 @@ def main():
                         valid_minutes)) 
         print(cred_details)
 
-    if __name__ == '__main__':
-        main()
+if __name__ == '__main__':
+    main()
 

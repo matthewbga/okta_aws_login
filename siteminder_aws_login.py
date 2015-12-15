@@ -238,15 +238,29 @@ def siteminder_password_login(username,password,idp_entry_url):
     # Opens the initial IdP url and follows all of the HTTP302 redirects, and
     # gets the resulting login page
     formresponse = session.get(idp_entry_url, verify=True)
-                print("formresponse: {}".format(formresponse))
+#     print("formresponse: {}".format(formresponse))
+#     print("formresponse.url: {}".format(formresponse.url))
+    
+
+    
     # Capture the idpauthformsubmiturl,
     # which is the final url after all the 302s
     idpauthformsubmiturl = formresponse.url
+#    print("formresponse.url: {}".format(formresponse.url))
+
+#    print("formresponse.cookies['korequrl']: {}".format(formresponse.cookies.get_dict()))
+
+    request_cookies = dict(korequrl='')
+
+
     # Parse the response and extract all the necessary values
     # in order to build a dictionary of all of the form values the IdP expects
     formsoup = BeautifulSoup(formresponse.text, "html.parser")
+#    print("formsoup: {}".format(formsoup))
+
+
     payload_dict = {}
-    for inputtag in               formsoup.find_all(re.compile('(INPUT|input)')):
+    for inputtag in formsoup.find_all(re.compile('(INPUT|input)')):
         name = inputtag.get('name','')
         value = inputtag.get('value','')
         if "user" in name.lower():
@@ -262,19 +276,29 @@ def siteminder_password_login(username,password,idp_entry_url):
     for inputtag in formsoup.find_all(re.compile('(FORM|form)')):
         action = inputtag.get('action')
     parsedurl = urlparse(idp_entry_url)
-    idpauthformsubmiturl = "{scheme}://{netloc}{action}".format(
-                                                scheme=parsedurl.scheme,
-                                                netloc=parsedurl.netloc,
-                                                action=action)
+#    idpauthformsubmiturl = "{scheme}://{netloc}{action}".format(scheme=parsedurl.scheme,
+#                                                                netloc=parsedurl.netloc,
+#                                                                action=action)
+
+#     print('scheme: {}'.format(parsedurl.scheme))
+#     print('netloc: {}'.format(parsedurl.netloc))
+#     print('action: {}'.format(action))
+#     print('payload_dict: {}'.format(payload_dict))
+#     print("request_cookies: {}".format(request_cookies))
+#     print("idpauthformsubmiturl: {}".format(idpauthformsubmiturl))
+
+
     # Performs the submission of the IdP login form with the above post data
     response = session.post(idpauthformsubmiturl, data=payload_dict,
-                            verify=True)
+                            verify=True, cookies=request_cookies)
+#     print("response: {}".format(response))
+
     # Check the response to see if the login was successful or
     # if MFA login is needed
     if "Sign in failed!" in response.text:
-        print("Sign in failed!")
-        sys.exit(1)
-   elif "SiteMinder Verify code" in response.text:
+      print("Sign in failed!")
+      sys.exit(1)
+    elif "SiteMinder Verify code" in response.text:
         response = siteminder_mfa_login(response,"SiteMinder Verify")
     elif "Google Authenticator code" in response.text:
         response = siteminder_mfa_login(response,"Google Authenticator")
@@ -307,8 +331,10 @@ def update_config_file(siteminder_aws_login_config_file):
     """Prompts user for config details for the siteminder_aws_login tool.
     Either updates exisiting config file or creates new one."""
     config = configparser.ConfigParser()
-                                # See if a config file already exists.
+    # See if a config file already exists.
     # If so, use current values as defaults
+    print("Looking for a SiteMinder config file here: {}".format(siteminder_aws_login_config_file))
+    
     if os.path.isfile(siteminder_aws_login_config_file) == True:
         config.read(siteminder_aws_login_config_file)
         idp_entry_url_default = config['DEFAULT']['idp_entry_url']
@@ -325,19 +351,25 @@ def update_config_file(siteminder_aws_login_config_file):
         cred_profile_default = "role"
     # Prompt user for config details and store in config_dict
     config_dict = {}
+    
     # Get and validate idp_entry_url
-    print("Enter the IDP Entry URL. This is the EMBED LINK URL found on the "
-            "General tab of the SiteMinder AWS App.")
-    idp_entry_url_valid = False
-    while idp_entry_url_valid == False:
-        idp_entry_url =  get_user_input("idp_entry_url",idp_entry_url_default)
-        # Validate that idp_entry_url is a well formed siteminder URL
-        url_parse_results = urlparse(idp_entry_url)
-        if (url_parse_results.scheme == "https" and
-                                     "testko.com" in idp_entry_url):
-            idp_entry_url_valid = True
-        else:
-            print("idp_entry_url must be HTTPS URL for siteminder.com domain")
+    # ZZZ: the following prompt should really be suppressed altogether, and the URL hard-coded. -mab 2015-12-14
+#     print("Enter the IDP Entry URL. This is the EMBED LINK URL found on the "
+#             "General tab of the SiteMinder AWS App... or perhaps it isn't. Verify this with SM team.")
+#     idp_entry_url_valid = False
+#     while idp_entry_url_valid == False:
+#         idp_entry_url =  get_user_input("idp_entry_url",idp_entry_url_default)
+#         # Validate that idp_entry_url is a well formed siteminder URL
+#         url_parse_results = urlparse(idp_entry_url)
+#         if (url_parse_results.scheme == "https" and
+#                                      "ko.com" in idp_entry_url):
+#             idp_entry_url_valid = True
+#         else:
+#             print("idp_entry_url must be HTTPS URL for siteminder.com domain")
+
+    # Hard-coding the SiteMinder endpoint for AWS SAML federation
+    idp_entry_url = "https://fed.testko.com/aws"
+
     config_dict['idp_entry_url'] = idp_entry_url
     # Get and validate region
     print("Enter the default region that will be used by the siteminder_aws_login "
@@ -438,6 +470,10 @@ def write_sid_file(sid_file,sid):
     os.close(sid_cache_file)
  
 def main():
+    # ZZZ: Okay, this function is a bit of a mess. No blame, but it needs to be tidied up. mab 2015-12-14
+
+
+
     # Create/Update config when configure arg set
     if args.configure == True:
         update_config_file(siteminder_aws_login_config_file)
@@ -452,6 +488,10 @@ def main():
         print(".siteminder_aws_login_config is needed. Use --configure flag to "
                 "generate file.")
         sys.exit(1)
+
+
+
+
     # declaring a var to hold the SAML assertion.
     assertion = None
     # if sid cache is enabled, see if a sid file exists
@@ -470,11 +510,11 @@ def main():
         if os.path.isfile(sid_cache_file):
             os.remove(sid_cache_file)
         user_creds = get_user_creds()
-        print('yo1')
         response = siteminder_password_login(user_creds['username'],
                                        user_creds['password'],
                                        conf_dict['idp_entry_url'])
         assertion = get_saml_assertion(response)
+#        print("saml_assertion: {}".format(assertion))
     # If the assertion is still none after the password login, then something
     # is wrong, complain and exit
     if assertion is None:
@@ -482,12 +522,20 @@ def main():
         sys.exit(1)
     # If cache sid enabled write sid to file
     if conf_dict['cache_sid'] == "yes":
-        write_sid_file(sid_cache_file,response.cookies['sid'])
+        write_sid_file(sid_cache_file,response.cookies['SMSESSION'])
     # Get arns from the assertion and the AWS creds from STS
     saml_dict = get_arns_from_assertion(assertion)
+    print("saml_dict: {}".format(saml_dict))
+    
+    
+# ZZZ: Here is the next piece to be worked through. We will need a valid, 
+#      AWS-ready SAML assertion to continue below. -mab 2015-12-15
+
+# ZZZ: The next step is to display the list of RoleArns, allowing the user
+#      to select one to use in the next step, obtaining an STS token from AWS. -mab 2015-12-15
     aws_creds = get_sts_token(saml_dict['RoleArn'],
-                          saml_dict['PrincipalArn'],
-                          saml_dict['SAMLAssertion'])
+                              saml_dict['PrincipalArn'],
+                              saml_dict['SAMLAssertion'])
     # Get role name to use for the name of the profile
     # check if profile arg has been set
     if args.profile is not None:
@@ -508,7 +556,7 @@ def main():
                     aws_creds['SecretAccessKey'],
                     aws_creds['SessionToken'],
                     conf_dict['region'],
-                   conf_dict['output_format'])
+                    conf_dict['output_format'])
  
     # Print message about aws_creds if verbose is set
     if args.verbose == True:
